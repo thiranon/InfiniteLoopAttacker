@@ -26,10 +26,23 @@
       background: var(--bg);
       color: var(--fg);
       min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
 
     canvas {
       display: block;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .stage {
+      position: relative;
+      width: 400px;
+      height: 600px;
     }
 
     .overlay {
@@ -98,7 +111,7 @@
 
     .level-display {
       position: absolute;
-      bottom: 10px;
+      top: 10px;
       left: 50%;
       transform: translateX(-50%);
       background: var(--card);
@@ -118,39 +131,48 @@
 </head>
 
 <body>
-  <canvas id="canvas" width="400" height="600"></canvas>
+  <div class="stage">
+    <canvas id="canvas" width="400" height="600"></canvas>
 
-  <div class="overlay" id="title-screen">
-    <h1 class="h1">Infinite Loop Attacker</h1>
-    <p class="h2">Destroy the bug invasion!</p>
-    <button class="btn" id="start-btn">Start Game</button>
-    <div id="version" style="position: absolute; bottom: 10px; right: 12px; color: var(--muted); font-size: 0.75rem;">v1.0.1</div>
+    <div class="overlay" id="title-screen">
+      <h1 class="h1 center">Infinite Loop Attacker</h1>
+      <p class="h2">Destroy the bug invasion!</p>
+      <button class="btn" id="start-btn">Start Game</button>
+      <div id="version" style="position: absolute; bottom: 10px; right: 12px; color: var(--muted); font-size: 0.75rem;">
+        v1.0.1</div>
+    </div>
+
+    <div class="overlay" id="game-over-screen" style="display: none;">
+      <h1 class="h1">Game Over</h1>
+      <p>Final Score: <span id="final-score">0</span></p>
+      <p>High Score: <span id="high-score">0</span></p>
+      <p>Level Reached: <span id="final-level">1</span></p>
+      <p>Shots Fired: <span id="final-shots">0</span> | Hits: <span id="final-hits">0</span> | Accuracy: <span
+          id="final-accuracy">0%</span></p>
+      <p>Kills — NORMAL: <span id="final-kills-normal">0</span> | FAST: <span id="final-kills-fast">0</span> | SPREAD:
+        <span id="final-kills-spread">0</span> | BOSS: <span id="final-kills-boss">0</span></p>
+      <button class="btn" id="restart-btn">Play Again</button>
+      <button class="btn" id="title-btn" style="background: var(--muted); color: var(--fg);">Back to Title</button>
+      <p class="h2">Vibe Code by Erdnalf</p>
+      <p class="h2">Model : Muse Spark 1.3 Free</p>
+    </div>
+
+    <div class="overlay" id="pause-screen" style="display: none;">
+      <h1 class="h1">PAUSE</h1>
+      <button class="btn" id="resume-btn">Resume</button>
+      <button class="btn" id="pause-title-btn" style="background: var(--muted); color: var(--fg);">Return to
+        Title</button>
+    </div>
+
+    <div class="score-panel" id="score-panel">Score: <span id="score-value">0</span></div>
+    <div class="highscore">High: <span id="highscore-value">0</span></div>
+    <div class="level-display" id="level-value">Level: 1</div>
   </div>
-
-  <div class="overlay" id="game-over-screen" style="display: none;">
-    <h1 class="h1">Game Over</h1>
-    <p>Final Score: <span id="final-score">0</span></p>
-    <p>High Score: <span id="high-score">0</span></p>
-    <p>Level Reached: <span id="final-level">1</span></p>
-    <p>Shots Fired: <span id="final-shots">0</span> | Hits: <span id="final-hits">0</span> | Accuracy: <span id="final-accuracy">0%</span></p>
-    <p>Kills — NORMAL: <span id="final-kills-normal">0</span> | FAST: <span id="final-kills-fast">0</span> | SPREAD: <span id="final-kills-spread">0</span> | BOSS: <span id="final-kills-boss">0</span></p>
-    <button class="btn" id="restart-btn">Play Again</button>
-    <button class="btn" id="title-btn" style="background: var(--muted); color: var(--fg);">Back to Title</button>
-    <p class="h2">Vibe Code by Erdnalf</p>
+  <div>
+    <div class="life" id="life-1"></div>
+    <div class="life" id="life-2"></div>
+    <div class="life" id="life-3"></div>
   </div>
-
-  <div class="overlay" id="pause-screen" style="display: none;">
-    <h1 class="h1">PAUSE</h1>
-    <button class="btn" id="resume-btn">Resume</button>
-    <button class="btn" id="pause-title-btn" style="background: var(--muted); color: var(--fg);">Return to Title</button>
-  </div>
-
-  <div class="score-panel" id="score-panel">Score: <span id="score-value">0</span></div>
-  <div class="life" id="life-1"></div>
-  <div class="life" id="life-2"></div>
-  <div class="life" id="life-3"></div>
-  <div class="highscore">High: <span id="highscore-value">0</span></div>
-  <div class="level-display" id="level-value">Level: 1</div>
   <div class="howto">How to play: Spacebar = Shoot, Arrow Left / Arrow Right = Move, Esc = Pause</div>
 
   <script>
@@ -430,7 +452,7 @@
 
     function showLevelCenter() {
       levelValue.textContent = 'Level: ' + level;
-      levelValue.style.position = 'fixed';
+      levelValue.style.position = 'absolute';
       levelValue.style.top = '50%';
       levelValue.style.bottom = 'auto';
       levelValue.style.left = '50%';
@@ -439,10 +461,10 @@
       levelValue.style.display = 'block';
     }
 
-    function dockLevelBottom() {
+    function dockLevelTop() {
       levelValue.style.position = 'absolute';
-      levelValue.style.top = 'auto';
-      levelValue.style.bottom = '10px';
+      levelValue.style.top = '10px';
+      levelValue.style.bottom = 'auto';
       levelValue.style.left = '50%';
       levelValue.style.transform = 'translateX(-50%)';
       levelValue.style.fontSize = '0.875rem';
@@ -458,8 +480,8 @@
         // Increase speed for next level - decrease move interval
         MOVE_INTERVAL = Math.max(100, MOVE_INTERVAL - 20);
         showLevelCenter();
-        setTimeout(function() {
-          dockLevelBottom();
+        setTimeout(function () {
+          dockLevelTop();
           // Reset bug movement tracking
           bugStep = 0;
           bugDirection = 1;
@@ -624,8 +646,8 @@
       gameOverScreen.style.display = 'none';
       showLevelCenter();
       // Dock level display and start game after 2 seconds
-      setTimeout(function() {
-        dockLevelBottom();
+      setTimeout(function () {
+        dockLevelTop();
         initBugs();
         player = createPlayer();
         resetPlayerPosition();
@@ -742,9 +764,9 @@
 
     startBtn.addEventListener('click', startGame);
     restartBtn.addEventListener('click', startGame);
-    titleBtn.addEventListener('click', function() { returnToTitle(false); });
+    titleBtn.addEventListener('click', function () { returnToTitle(false); });
     resumeBtn.addEventListener('click', resumeGame);
-    pauseTitleBtn.addEventListener('click', function() { returnToTitle(true); });
+    pauseTitleBtn.addEventListener('click', function () { returnToTitle(true); });
 
     // Initialize frame counter
     let frameCount = 0;
