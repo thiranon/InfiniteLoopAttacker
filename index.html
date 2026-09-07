@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Infinite Loop Attacker</title>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --fg: #e0e0e8;
+      --muted: #4a4a5a;
+      --accent: #00ff88;
+      --danger: #ff3333;
+      --card: #1a1a24;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border;
+    }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+    }
+
+    .h1 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .h2 {
+      font-size: 1.25rem;
+      color: var(--muted);
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    .btn:hover {
+      opacity: 0.9;
+    }
+
+    .score-panel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: var(--card);
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 0.875rem;
+    }
+
+    .life {
+      width: 20px;
+      height: 20px;
+      background: var(--danger);
+      margin: 2px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+
+    .highscore {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: var(--card);
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 0.875rem;
+    }
+
+    .level-display {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--card);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.875rem;
+    }
+
+    .howto {
+      max-width: 400px;
+      padding: 8px 12px;
+      color: var(--muted);
+      font-size: 0.875rem;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="canvas" width="400" height="600"></canvas>
+
+  <div class="overlay" id="title-screen">
+    <h1 class="h1">Infinite Loop Attacker</h1>
+    <p class="h2">Destroy the bug invasion!</p>
+    <button class="btn" id="start-btn">Start Game</button>
+    <div id="version" style="position: absolute; bottom: 10px; right: 12px; color: var(--muted); font-size: 0.75rem;">v1.0.1</div>
+  </div>
+
+  <div class="overlay" id="game-over-screen" style="display: none;">
+    <h1 class="h1">Game Over</h1>
+    <p>Final Score: <span id="final-score">0</span></p>
+    <p>High Score: <span id="high-score">0</span></p>
+    <p>Level Reached: <span id="final-level">1</span></p>
+    <p>Shots Fired: <span id="final-shots">0</span> | Hits: <span id="final-hits">0</span> | Accuracy: <span id="final-accuracy">0%</span></p>
+    <p>Kills — NORMAL: <span id="final-kills-normal">0</span> | FAST: <span id="final-kills-fast">0</span> | SPREAD: <span id="final-kills-spread">0</span> | BOSS: <span id="final-kills-boss">0</span></p>
+    <button class="btn" id="restart-btn">Play Again</button>
+    <button class="btn" id="title-btn" style="background: var(--muted); color: var(--fg);">Back to Title</button>
+    <p class="h2">Vibe Code by Erdnalf</p>
+  </div>
+
+  <div class="overlay" id="pause-screen" style="display: none;">
+    <h1 class="h1">PAUSE</h1>
+    <button class="btn" id="resume-btn">Resume</button>
+    <button class="btn" id="pause-title-btn" style="background: var(--muted); color: var(--fg);">Return to Title</button>
+  </div>
+
+  <div class="score-panel" id="score-panel">Score: <span id="score-value">0</span></div>
+  <div class="life" id="life-1"></div>
+  <div class="life" id="life-2"></div>
+  <div class="life" id="life-3"></div>
+  <div class="highscore">High: <span id="highscore-value">0</span></div>
+  <div class="level-display" id="level-value">Level: 1</div>
+  <div class="howto">How to play: Spacebar = Shoot, Arrow Left / Arrow Right = Move, Esc = Pause</div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const titleScreen = document.getElementById('title-screen');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const startBtn = document.getElementById('start-btn');
+    const restartBtn = document.getElementById('restart-btn');
+    const scorePanel = document.getElementById('score-panel');
+    const scoreValue = document.getElementById('score-value');
+    const life1 = document.getElementById('life-1');
+    const life2 = document.getElementById('life-2');
+    const life3 = document.getElementById('life-3');
+    const highscoreValue = document.getElementById('highscore-value');
+    const finalScore = document.getElementById('final-score');
+    const highScoreDisplay = document.getElementById('high-score');
+    const levelValue = document.getElementById('level-value');
+    const pauseScreen = document.getElementById('pause-screen');
+    const resumeBtn = document.getElementById('resume-btn');
+    const pauseTitleBtn = document.getElementById('pause-title-btn');
+    const titleBtn = document.getElementById('title-btn');
+
+    const HIGH_SCORE_KEY = 'infiniteLoopAttackerHighScore';
+    function loadHighScore() {
+      try {
+        const v = parseInt(localStorage.getItem(HIGH_SCORE_KEY), 10);
+        return Number.isFinite(v) ? v : 0;
+      } catch (e) {
+        return 0;
+      }
+    }
+    function saveHighScore(v) {
+      try {
+        localStorage.setItem(HIGH_SCORE_KEY, String(v));
+      } catch (e) {
+        console.warn('saveHighScore failed', e);
+      }
+    }
+    let highScore = loadHighScore();
+    let score = 0;
+    let scoreAtLevelStart = 0;
+    let lives = 3;
+    let gameRunning = false;
+    let paused = false;
+    let invincibleUntil = 0;
+    let level = 1;
+    let bugs = [];
+    let shots = [];
+    let player = null;
+    let shotsFired = 0;
+    let shotsHit = 0;
+    let killsByType = { NORMAL: 0, FAST: 0, SPREAD: 0, BOSS: 0 };
+
+    // Load high score display
+    highscoreValue.textContent = highScore;
+    levelValue.textContent = 'Level: ' + level;
+
+    // Game constants
+    const GROUND_Y = canvas.height - 20;
+    const PLAYER_WIDTH = 60;
+    const PLAYER_HEIGHT = 12;
+    const BUG_WIDTH = 32;
+    const BUG_HEIGHT = 20;
+    const SHOT_SPEED = 4;
+    const BASE_BUG_SPEED = 1;
+    const PLAYER_SHOT_COOLDOWN = 250; // ms, max ~4 shots/sec
+    let lastPlayerShot = 0;
+    let MOVE_INTERVAL = 300; // ms between bug movements (will decrease with level)
+    let levelTransitioning = false;
+    const BUG_TYPES = {
+      NORMAL: { color: '#ff6b6b', shootInterval: 1000, spread: false },
+      FAST: { color: '#ffa502', shootInterval: 600, spread: false },
+      SPREAD: { color: '#ff6b9d', shootInterval: 800, spread: true },
+      BOSS: { color: '#ffd93d', shootInterval: 400, spread: true }
+    };
+    const ROWS = 3;
+    const COLS = 8;
+
+    // Bug movement tracking variables
+    let bugDirection = 1; // 1 = right, -1 = left
+    let bugStep = 0; // Count steps in current direction
+    const STEPS_PER_EDGE = 8; // Steps before moving down
+
+    // FPS counter variables
+    let lastTime = 0;
+    let fps = 0;
+
+    // Player object
+    function createPlayer() {
+      return {
+        x: (canvas.width - PLAYER_WIDTH) / 2,
+        y: GROUND_Y - PLAYER_HEIGHT,
+        width: PLAYER_HEIGHT,
+        height: PLAYER_WIDTH,
+        color: '#00ff88'
+      };
+    }
+
+    // Bug object
+    function createBug(col, row, type) {
+      const base = BUG_TYPES[type];
+      const spawnX = Math.min(40 + col * (BUG_WIDTH + 10), canvas.width - BUG_WIDTH);
+      return {
+        x: spawnX,
+        y: 40 + row * (BUG_HEIGHT + 10),
+        width: BUG_WIDTH,
+        height: BUG_HEIGHT,
+        color: base ? base.color : '#ff6b6b',
+        type: type,
+        shootInterval: base ? base.shootInterval : 1000,
+        spread: base ? base.spread : false
+      };
+    }
+
+    // Initialize bugs for current level
+    function initBugs() {
+      bugs = [];
+      let bossPlaced = false;
+      // Increase number of bugs and speed with each level, capped to fit screen
+      const currentRows = Math.min(8, ROWS + Math.floor((level - 1) / 2)); // Add row every 2 levels, max 8
+      const currentCols = Math.min(8, COLS + Math.floor((level - 1) / 3));  // Add column every 3 levels, max 8
+
+      for (let row = 0; row < currentRows; row++) {
+        for (let col = 0; col < currentCols; col++) {
+          // Higher levels have higher chance of boss/fast bugs
+          const rarity = Math.random();
+          let type;
+          if (rarity < 0.15 && !bossPlaced) {
+            type = 'BOSS';
+            bossPlaced = true;
+          } else if (rarity < 0.30) {
+            type = 'FAST';
+          } else if (rarity < 0.45) {
+            type = 'SPREAD';
+          } else {
+            type = 'NORMAL';
+          }
+          bugs.push(createBug(col, row, type));
+        }
+      }
+    }
+
+    // Shoot shot (rate-limited)
+    function shoot() {
+      const now = performance.now();
+      if (now - lastPlayerShot < PLAYER_SHOT_COOLDOWN) return;
+      lastPlayerShot = now;
+      shotsFired++;
+      shots.push({
+        x: player.x + player.width / 2 - 2,
+        y: player.y,
+        width: 4,
+        height: 12,
+        color: '#00ff88',
+        vy: -SHOT_SPEED,
+        friendly: true
+      });
+    }
+
+    // Bug shoot
+    function bugShoot() {
+      if (bugs.length === 0) return;
+      // Pick random bug
+      const shooter = bugs[Math.floor(Math.random() * bugs.length)];
+      const shotX = shooter.x + shooter.width / 2 - 2;
+      const shotY = shooter.y + shooter.height;
+
+      const enemyVy = 2 + level * 0.3;
+      if (shooter.spread) {
+        // Spread shot: 3 shots
+        shots.push({
+          x: shotX - 6,
+          y: shotY,
+          width: 4,
+          height: 12,
+          color: shooter.color,
+          vy: enemyVy,
+          friendly: false
+        });
+        shots.push({
+          x: shotX,
+          y: shotY,
+          width: 4,
+          height: 12,
+          color: shooter.color,
+          vy: enemyVy,
+          friendly: false
+        });
+        shots.push({
+          x: shotX + 6,
+          y: shotY,
+          width: 4,
+          height: 12,
+          color: shooter.color,
+          vy: enemyVy,
+          friendly: false
+        });
+      } else {
+        shots.push({
+          x: shotX,
+          y: shotY,
+          width: 4,
+          height: 12,
+          color: shooter.color,
+          vy: enemyVy,
+          friendly: false
+        });
+      }
+    }
+
+    // Move bugs - edge-triggered: hit edge -> drop 1 bug height -> reverse
+    function moveBugs() {
+      // Calculate current speed based on level
+      const currentBugSpeed = BASE_BUG_SPEED * level;
+
+      // Look ahead: would next step push leftmost/rightmost past the wall?
+      let edgeHit = false;
+      if (bugDirection > 0) {
+        for (const bug of bugs) {
+          if (bug.x + bug.width + currentBugSpeed >= canvas.width) {
+            edgeHit = true;
+            break;
+          }
+        }
+      } else {
+        for (const bug of bugs) {
+          if (bug.x - currentBugSpeed <= 0) {
+            edgeHit = true;
+            break;
+          }
+        }
+      }
+
+      if (edgeHit) {
+        // Drop toward player by exactly 1 bug height, no horizontal move this tick
+        for (const bug of bugs) {
+          bug.y += BUG_HEIGHT;
+          // Safety clamp in case formation spawned wide
+          bug.x = Math.max(0, Math.min(canvas.width - bug.width, bug.x));
+        }
+        bugDirection *= -1;
+        bugStep = 0;
+      } else {
+        // Safe to move horizontally, never crosses the edge
+        for (const bug of bugs) {
+          bug.x += currentBugSpeed * bugDirection;
+        }
+        bugStep++;
+      }
+    }
+
+    // Shot-bug collision (player shots only)
+    function checkCollisions() {
+      for (let i = shots.length - 1; i >= 0; i--) {
+        const shot = shots[i];
+        if (shot.friendly === false) continue;
+        for (let j = bugs.length - 1; j >= 0; j--) {
+          const bug = bugs[j];
+          if (
+            shot.x < bug.x + bug.width &&
+            shot.x + shot.width > bug.x &&
+            shot.y < bug.y + bug.height &&
+            shot.y + shot.height > bug.y
+          ) {
+            shots.splice(i, 1);
+            bugs.splice(j, 1);
+            score += 100;
+            scoreValue.textContent = score;
+            shotsHit++;
+            if (killsByType[bug.type] !== undefined) killsByType[bug.type]++;
+            break;
+          }
+        }
+      }
+    }
+
+    function showLevelCenter() {
+      levelValue.textContent = 'Level: ' + level;
+      levelValue.style.position = 'fixed';
+      levelValue.style.top = '50%';
+      levelValue.style.bottom = 'auto';
+      levelValue.style.left = '50%';
+      levelValue.style.transform = 'translate(-50%, -50%)';
+      levelValue.style.fontSize = '2rem';
+      levelValue.style.display = 'block';
+    }
+
+    function dockLevelBottom() {
+      levelValue.style.position = 'absolute';
+      levelValue.style.top = 'auto';
+      levelValue.style.bottom = '10px';
+      levelValue.style.left = '50%';
+      levelValue.style.transform = 'translateX(-50%)';
+      levelValue.style.fontSize = '0.875rem';
+      levelValue.style.display = 'block';
+    }
+
+    // Check if level is complete (all bugs destroyed)
+    function checkLevelComplete() {
+      if (bugs.length === 0 && gameRunning && !levelTransitioning) {
+        levelTransitioning = true;
+        gameRunning = false;
+        level++;
+        // Increase speed for next level - decrease move interval
+        MOVE_INTERVAL = Math.max(100, MOVE_INTERVAL - 20);
+        showLevelCenter();
+        setTimeout(function() {
+          dockLevelBottom();
+          // Reset bug movement tracking
+          bugStep = 0;
+          bugDirection = 1;
+          shots = [];
+          initBugs();
+          resetPlayerPosition();
+          scoreAtLevelStart = score;
+          invincibleUntil = 0;
+          lastPlayerShot = 0;
+          levelTransitioning = false;
+          gameRunning = true;
+          lastTime = 0;
+          requestAnimationFrame(loop);
+        }, 2000);
+      }
+    }
+
+    function resetPlayerPosition() {
+      if (!player) return;
+      player.x = (canvas.width - player.width) / 2;
+    }
+
+    function hitPlayer() {
+      const now = performance.now();
+      if (now < invincibleUntil) return false;
+      lives--;
+      updateLives();
+      if (lives <= 0) {
+        gameOver();
+        return true;
+      }
+      // Blink + invincible 1s to avoid chain hits
+      invincibleUntil = now + 1000;
+      return true;
+    }
+
+    // Bug-shot player collision
+    function checkBugCollision() {
+      if (!player) return;
+      if (performance.now() < invincibleUntil) return;
+      for (const bug of bugs) {
+        if (
+          bug.x < player.x + player.width &&
+          bug.x + bug.width > player.x &&
+          bug.y < player.y + player.height &&
+          bug.y + bug.height > player.y
+        ) {
+          hitPlayer();
+          if (lives <= 0) return;
+          // Reset bug position
+          bug.y = 0;
+          bug.x = Math.random() * (canvas.width - BUG_WIDTH);
+          break;
+        }
+      }
+    }
+
+    // Enemy shots vs player
+    function checkEnemyShots() {
+      if (!player) return;
+      if (performance.now() < invincibleUntil) return;
+      for (let i = shots.length - 1; i >= 0; i--) {
+        const shot = shots[i];
+        if (shot.friendly !== false) continue;
+        if (
+          shot.x < player.x + player.width &&
+          shot.x + shot.width > player.x &&
+          shot.y < player.y + player.height &&
+          shot.y + shot.height > player.y
+        ) {
+          shots.splice(i, 1);
+          hitPlayer();
+          if (lives <= 0) return;
+          break;
+        }
+      }
+    }
+
+    // Update lives display
+    function updateLives() {
+      life1.style.opacity = lives >= 1 ? '1' : '0.3';
+      life2.style.opacity = lives >= 2 ? '1' : '0.3';
+      life3.style.opacity = lives >= 3 ? '1' : '0.3';
+    }
+
+    // Game over
+    function gameOver() {
+      gameRunning = false;
+      paused = false;
+      pauseScreen.style.display = 'none';
+      scorePanel.style.display = 'none';
+      levelValue.style.display = 'none';
+      finalScore.textContent = score;
+      if (score > highScore) {
+        highScore = score;
+        saveHighScore(highScore);
+      }
+      highScoreDisplay.textContent = highScore;
+      highscoreValue.textContent = highScore;
+      document.getElementById('final-level').textContent = level;
+      document.getElementById('final-shots').textContent = shotsFired;
+      document.getElementById('final-hits').textContent = shotsHit;
+      document.getElementById('final-accuracy').textContent = shotsFired > 0 ? Math.round(shotsHit / shotsFired * 100) + '%' : '0%';
+      document.getElementById('final-kills-normal').textContent = killsByType.NORMAL;
+      document.getElementById('final-kills-fast').textContent = killsByType.FAST;
+      document.getElementById('final-kills-spread').textContent = killsByType.SPREAD;
+      document.getElementById('final-kills-boss').textContent = killsByType.BOSS;
+      gameOverScreen.style.display = 'flex';
+    }
+
+    function returnToTitle(discardLevelScore) {
+      if (discardLevelScore) {
+        score = scoreAtLevelStart;
+        scoreValue.textContent = score;
+      }
+      gameRunning = false;
+      paused = false;
+      levelTransitioning = false;
+      invincibleUntil = 0;
+      pauseScreen.style.display = 'none';
+      gameOverScreen.style.display = 'none';
+      scorePanel.style.display = 'none';
+      levelValue.style.display = 'none';
+      titleScreen.style.display = 'flex';
+    }
+
+    function pauseGame() {
+      if (!gameRunning || paused || levelTransitioning) return;
+      paused = true;
+      gameRunning = false;
+      pauseScreen.style.display = 'flex';
+    }
+
+    function resumeGame() {
+      if (!paused) return;
+      paused = false;
+      pauseScreen.style.display = 'none';
+      gameRunning = true;
+      lastTime = 0;
+      lastPlayerShot = 0;
+      requestAnimationFrame(loop);
+    }
+
+    // Start game
+    function startGame() {
+      score = 0;
+      scoreAtLevelStart = 0;
+      shotsFired = 0;
+      shotsHit = 0;
+      killsByType = { NORMAL: 0, FAST: 0, SPREAD: 0, BOSS: 0 };
+      lives = 3;
+      level = 1;
+      MOVE_INTERVAL = 300;
+      shots = [];
+      levelTransitioning = false;
+      paused = false;
+      invincibleUntil = 0;
+      pauseScreen.style.display = 'none';
+      scorePanel.style.display = 'block';
+      // Show level in center for 2 seconds before starting
+      titleScreen.style.display = 'none';
+      gameOverScreen.style.display = 'none';
+      showLevelCenter();
+      // Dock level display and start game after 2 seconds
+      setTimeout(function() {
+        dockLevelBottom();
+        initBugs();
+        player = createPlayer();
+        resetPlayerPosition();
+        scoreValue.textContent = '0';
+        updateLives();
+        life1.style.opacity = '1';
+        life2.style.opacity = '1';
+        life3.style.opacity = '1';
+        gameRunning = true;
+        lastTime = 0; // Reset FPS timer
+        lastPlayerShot = 0;
+        frameCount = 0;
+        // Reset bug movement tracking
+        bugStep = 0;
+        bugDirection = 1;
+        loop(0); // Start game loop with initial time
+      }, 2000);
+    }
+
+    // Game loop
+    function loop(time) {
+      if (!gameRunning) return;
+
+      // Calculate FPS
+      if (lastTime === 0) {
+        lastTime = time;
+      }
+      const delta = time - lastTime;
+      if (delta > 0) {
+        fps = 1000 / delta;
+      }
+      lastTime = time;
+
+      // Clear canvas
+      ctx.fillStyle = '#0a0a0f';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw FPS at bottom-right
+      ctx.fillStyle = '#0f0';
+      ctx.font = '14px system-ui';
+      ctx.fillText('FPS: ' + Math.round(fps), canvas.width - 70, canvas.height - 5);
+
+      // Draw player (blink while invincible)
+      if (player) {
+        const now = performance.now();
+        const blinking = now < invincibleUntil;
+        if (!blinking || Math.floor(now / 100) % 2 === 0) {
+          ctx.fillStyle = player.color;
+          ctx.fillRect(player.x, player.y, player.width, player.height);
+        }
+      }
+
+      // Draw bugs
+      for (const bug of bugs) {
+        ctx.fillStyle = bug.color;
+        ctx.fillRect(bug.x, bug.y, bug.width, bug.height);
+      }
+
+      // Draw shots
+      for (let s = shots.length - 1; s >= 0; s--) {
+        const shot = shots[s];
+        ctx.fillStyle = shot.color;
+        ctx.fillRect(shot.x, shot.y, shot.width, shot.height);
+        shot.y += (shot.vy !== undefined ? shot.vy : -SHOT_SPEED);
+        // Remove shot if off screen (top or bottom)
+        if (shot.y + shot.height < 0 || shot.y > canvas.height) {
+          shots.splice(s, 1);
+        }
+      }
+
+      // Move bugs periodically
+      if (frameCount % MOVE_INTERVAL === 0) {
+        moveBugs();
+      }
+
+      // Enemy shoots on its own timer - faster on higher levels
+      const enemyShootInterval = Math.max(30, 110 - level * 10);
+      if (frameCount % enemyShootInterval === 0) {
+        bugShoot();
+      }
+      frameCount++;
+
+      // Check collisions
+      checkCollisions();
+      checkBugCollision();
+      checkEnemyShots();
+      checkLevelComplete();
+
+      requestAnimationFrame(loop);
+    }
+
+    // Event listeners
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (paused) {
+          resumeGame();
+        } else {
+          pauseGame();
+        }
+        return;
+      }
+      if (!player) return;
+      if (e.key === ' ' && gameRunning && !paused) {
+        e.preventDefault();
+        shoot();
+      }
+      if (e.key === 'ArrowLeft' && gameRunning && !paused) {
+        player.x = Math.max(0, player.x - 10);
+      }
+      if (e.key === 'ArrowRight' && gameRunning && !paused) {
+        player.x = Math.min(canvas.width - player.width, player.x + 10);
+      }
+    });
+
+    startBtn.addEventListener('click', startGame);
+    restartBtn.addEventListener('click', startGame);
+    titleBtn.addEventListener('click', function() { returnToTitle(false); });
+    resumeBtn.addEventListener('click', resumeGame);
+    pauseTitleBtn.addEventListener('click', function() { returnToTitle(true); });
+
+    // Initialize frame counter
+    let frameCount = 0;
+
+    // Start with title screen (hide HUD on title)
+    titleScreen.style.display = 'flex';
+    scorePanel.style.display = 'none';
+    levelValue.style.display = 'none';
+  </script>
+</body>
+
+</html>
